@@ -36,7 +36,7 @@
     // Recommended Options
     "strict": true,
     "esModuleInterop": true,
-    "ignoreDeprecations": "6.0",
+    // "ignoreDeprecations": "6.0",
     // "jsx": "react-jsx",
     // "verbatimModuleSyntax": true,
     "isolatedModules": true,

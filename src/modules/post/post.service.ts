@@ -1,6 +1,49 @@
-import { Post, PostStatus } from "../../../generated/prisma/client";
+import { Comment, Post, PostStatus } from "../../../generated/prisma/client";
 import { PostWhereInput } from "../../../generated/prisma/models";
 import { prisma } from "../../lib/prisma";
+
+type FlattenedComment = Comment & { depth: number , totalReplies: number };
+
+function flattenComments(comments: Comment[]): FlattenedComment[] {
+  const childrenMap = new Map<string | null, Comment[]>();
+
+  // Group comments by parentId
+  for (const comment of comments) {
+    const parentId = comment.parentId;
+
+    if (!childrenMap.has(parentId)) {
+      childrenMap.set(parentId, []);
+    }
+
+    childrenMap.get(parentId)!.push(comment);
+  }
+
+  const result: FlattenedComment[] = [];
+
+  function traverse(
+    parentId: string | null,
+    depth: number
+  ): void {
+    const children = childrenMap.get(parentId) ?? [];
+
+    for (const comment of children) {
+      const replies = childrenMap.get(comment.id) || [];
+      result.push({
+        ...comment,
+        depth,
+        totalReplies: replies.length,
+      });
+
+      // Find replies to this comment
+      traverse(comment.id, depth + 1);
+    }
+  }
+
+  // Start from root comments
+  traverse(null, 0);
+
+  return result;
+}
 
 const createPost = async (
   data: Omit<Post, "id" | "createdAt" | "updatedAt" | "authorId">,
@@ -88,6 +131,13 @@ const getAllPosts = async (payload: {
     skip: payload.skip as number,
     orderBy: {
       [payload.sortBy as string]: payload.sortOrder as string,
+    },
+    include: {
+      _count: {
+        select: {
+          comments: true
+        }
+      }
     }
   });
 
@@ -127,7 +177,27 @@ const getPostById = async (postId: string) => {
       },
     });
 
-    return postData
+    if (!postData) {
+      throw new Error("Post not found");
+    }
+
+    const comments = await tx.comment.findMany({
+      where: {
+        postId,
+        status: "APPROVED"
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const flatComments = flattenComments(comments);
+
+    return {
+      ...postData,
+      comments: flatComments,
+      totalComment: flatComments.length,
+    };
   });
 }
 
