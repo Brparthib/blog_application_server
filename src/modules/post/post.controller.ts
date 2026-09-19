@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { postService } from "./post.service";
-import { PostStatus } from "../../../generated/prisma/enums";
+import { PostStatus, UserRole } from "../../../generated/prisma/enums";
 import { paginationHelper } from "../../helpers/paginationHelper";
 
 const createPost = async (req: Request, res: Response) => {
@@ -91,8 +91,75 @@ const getPostById = async (req: Request, res: Response) => {
   }
 };
 
+const getMyPosts = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const result = await postService.getMyPosts(user.id as string);
+
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to get post",
+      error: error,
+    });
+  }
+};
+
+const updatePost = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const isAdmin = user.role === UserRole.ADMIN;
+
+    const result = await postService.updatePost(req.params.id as string, req.body, user.id as string, isAdmin);
+
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update post",
+      error: error,
+    });
+  }
+}
+
+const deletePost = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const isAdmin = user.role === UserRole.ADMIN;
+
+    const result = await postService.deletePost(req.params.id as string, user.id as string, isAdmin);
+
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to delete post",
+      error: error,
+    });
+  }
+}
+
 export const postController = {
   createPost,
   getAllPosts,
-  getPostById
+  getPostById,
+  getMyPosts,
+  updatePost,
+  deletePost
 };

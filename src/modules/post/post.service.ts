@@ -1,8 +1,8 @@
-import { Comment, Post, PostStatus } from "../../../generated/prisma/client";
+import { Comment, Post, PostStatus, UserStatus } from "../../../generated/prisma/client";
 import { PostWhereInput } from "../../../generated/prisma/models";
 import { prisma } from "../../lib/prisma";
 
-type FlattenedComment = Comment & { depth: number , totalReplies: number };
+type FlattenedComment = Comment & { depth: number, totalReplies: number };
 
 function flattenComments(comments: Comment[]): FlattenedComment[] {
   const childrenMap = new Map<string | null, Comment[]>();
@@ -201,8 +201,105 @@ const getPostById = async (postId: string) => {
   });
 }
 
+const getMyPosts = async (userId: string) => {
+  await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId,
+      status: UserStatus.ACTIVE
+    },
+    select: {
+      id: true
+    }
+  })
+
+  const result = await prisma.post.findMany({
+    where: {
+      authorId: userId
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    include: {
+      _count: {
+        select: {
+          comments: true
+        }
+      }
+    }
+  })
+
+  const total = await prisma.post.count({
+    where: {
+      authorId: userId
+    }
+  })
+
+  return {
+    data: result,
+    meta: {
+      total
+    }
+  };
+}
+
+const updatePost = async (postId: string, payload: Partial<Post>, authorId: string, isAdmin: boolean) => {
+  const postData = await prisma.post.findUniqueOrThrow({
+    where: {
+      id: postId,
+    },
+    select: {
+      id: true,
+      authorId: true,
+    }
+  });
+
+  if (!isAdmin && (postData.authorId !== authorId)) {
+    throw new Error("You are not authorized to update this post");
+  }
+
+  if(!isAdmin){
+    delete payload.isFeatured;
+  }
+
+  const result = await prisma.post.update({
+    where: {
+      id: postId,
+    },
+    data: payload,
+  });
+
+  return result;
+}
+
+const deletePost = async (postId:string, authorId:string, isAdmin:boolean)=>{
+  const postData = await prisma.post.findUniqueOrThrow({
+    where: {
+      id: postId,
+    },
+    select: {
+      id: true,
+      authorId: true,
+    }
+  });
+
+  if (!isAdmin && (postData.authorId !== authorId)) {
+    throw new Error("You are not authorized to delete this post");
+  }
+
+  const result = await prisma.post.delete({
+    where: {
+      id: postId,
+    },
+  });
+
+  return result;  
+}
+
 export const postService = {
   createPost,
   getAllPosts,
-  getPostById
+  getPostById,
+  getMyPosts,
+  updatePost,
+  deletePost
 };

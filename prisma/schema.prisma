@@ -12,6 +12,17 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
 enum PostStatus {
   DRAFT
   PUBLISHED
@@ -74,9 +85,9 @@ model User {
   sessions      Session[]
   accounts      Account[]
 
-  role   String? @default("USER")
+  role   UserRole @default(USER)
   phone  String?
-  status String? @default("ACTIVE")
+  status UserStatus @default(ACTIVE)
 
   @@unique([email])
   @@map("user")
